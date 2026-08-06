@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice Agent Test Client</title>
+    <script src="https://cdn.livekit.io/agent/@livekit/agent-js@latest/dist/bundle.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+        #status { padding: 10px; margin: 10px 0; border-radius: 4px; }
+        .connected { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .disconnected { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .talking { background-color: #fff3cd; color: #856404; border: 1px solid #ffeaa7; }
+        button { padding: 10px 20px; margin: 5px; }
+        #transcript { height: 200px; border: 1px solid #ccc; padding: 10px; overflow-y: auto; margin: 10px 0; }
+        .user-msg { background-color: #e3f2fd; padding: 8px; border-radius: 4px; margin: 5px 0; }
+        .agent-msg { background-color: #f3e5f5; padding: 8px; border-radius: 4px; margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <h1>���🎙��️ Voice Agent Test Client</h1>
+    <p>Connect to your Health Access voice agent</p>
+    
+    <div id="status" class="disconnected">Disconnected</div>
+    
+    <div>
+        <button id="connectBtn">Connect</button>
+        <button id="disconnectBtn" disabled>Disconnect</button>
+    </div>
+    
+    <h2>Conversation</h2>
+    <div id="transcript"></div>
+    
+    <script>
+        // Configuration - UPDATE THESE WITH YOUR ACTUAL VALUES
+        const LIVEKIT_URL = "wss://murf-ai-se7z3cwk.livekit.cloud";
+        // You'll need to generate a token - see instructions below
+        let ACCESS_TOKEN = "";  // <-- PUT YOUR TOKEN HERE
+        
+        let room = null;
+        let isConnected = false;
+        
+        // DOM elements
+        const statusEl = document.getElementById('status');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const transcriptEl = document.getElementById('transcript');
+        
+        // Add message to transcript
+        function addMessage(sender, message) {
+            const msgDiv = document.createElement('div');
+            msgDiv.className = sender === 'user' ? 'user-msg' : 'agent-msg';
+            msgDiv.innerHTML = `<strong>${sender === 'user' ? 'You' : 'Agent'}:</strong> ${message}`;
+            transcriptEl.appendChild(msgDiv);
+            transcriptEl.scrollTop = transcriptEl.scrollHeight;
+        }
+        
+        // Update status
+        function updateStatus(connected) {
+            isConnected = connected;
+            statusEl.textContent = connected ? 'Connected' : 'Disconnected';
+            statusEl.className = connected ? 'status connected' : 'status disconnected';
+            connectBtn.disabled = connected;
+            disconnectBtn.disabled = !connected;
+        }
+        
+        // Connect to room
+        async function connect() {
+            try {
+                updateStatus(false);
+                statusEl.textContent = 'Connecting...';
+                
+                room = new LiveKit.Room();
+                
+                room.on('connected', () => {
+                    updateStatus(true);
+                    addMessage('system', 'Connected to voice agent!');
+                });
+                
+                room.on('disconnected', (reason) => {
+                    updateStatus(false);
+                    addMessage('system', `Disconnected: ${reason}`);
+                });
+                
+                room.on('participantConnected', (participant) => {
+                    addMessage('system', `Participant connected: ${participant.identity}`);
+                });
+                
+                room.on('trackSubscribed', (track, publication, participant) => {
+                    if (track.kind === 'audio') {
+                        // Play audio
+                        const audioElement = new Audio();
+                        audioElement.srcObject = new MediaStream([track]);
+                        audioElement.play().catch(e => console.warn('Audio play failed:', e));
+                        
+                        track.on('ended', () => {
+                            audioElement.pause();
+                            audioElement.srcObject = null;
+                        });
+                    }
+                });
+                
+                // For text transcripts (if your agent supports it)
+                room.on('dataReceived', (data, participant, kind) => {
+                    try {
+                        const message = new TextDecoder().decode(data);
+                        addMessage('agent', message);
+                    } catch (e) {
+                        console.warn('Could not decode data message:', e);
+                    }
+                });
+                
+                await room.connect(LIVEKIT_URL, ACCESS_TOKEN);
+            } catch (error) {
+                console.error('Failed to connect:', error);
+                updateStatus(false);
+                addMessage('system', `Connection failed: ${error.message}`);
+            }
+        }
+        
+        // Disconnect from room
+        function disconnect() {
+            if (room) {
+                room.disconnect();
+                room = null;
+            }
+        }
+        
+        // Event listeners
+        connectBtn.addEventListener('click', () => {
+            if (!ACCESS_TOKEN) {
+                alert('Please set your access token in the JavaScript code!\n\nGet one by running:\\nlivekit token --api-key APIZfKrQhTuAVni --api-secret Nko1mfZ005F8wBSFPhbYfG7F0eFsFCA7vrec5veoBPqC --name test-user wss://murf-ai-se7z3cwk.livekit.cloud');
+                return;
+            }
+            connect();
+        });
+        
+        disconnectBtn.addEventListener('click', () => {
+            disconnect();
+        });
+        
+        // Allow typing messages to send (if agent supports data messages)
+        document.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && isConnected) {
+                const input = prompt('Enter a message to send to the agent:');
+                if (input && room) {
+                    const encoder = new TextEncoder();
+                    room.sendData(encoder.encode(input), { reliable: true });
+                    addMessage('user', input);
+                }
+            }
+        });
+    </script>
+</body>
+</html>
