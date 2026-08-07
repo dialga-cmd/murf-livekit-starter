@@ -12,6 +12,8 @@ from livekit.agents import (
     inference,
     tokenize,
     room_io,
+    function_tool,
+    RunContext,
 )
 from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
 
@@ -56,22 +58,109 @@ class Assistant(Agent):
     def __init__(self) -> None:
         super().__init__(instructions=SYSTEM_PROMPT)
 
-    # To add tools, use the @function_tool decorator.
-    # Here's an example that adds a simple weather tool.
-    # You also have to add `from livekit.agents import function_tool, RunContext` to the top of this file
-    # @function_tool
-    # async def lookup_weather(self, context: RunContext, location: str):
-    #     """Use this tool to look up current weather information in the given location.
-    #
-    #     If the location is not supported by the weather service, the tool will indicate this. You must tell the user the location's weather is unavailable.
-    #
-    #     Args:
-    #         location: The location to look up weather information for (e.g. city name)
-    #     """
-    #
-    #     logger.info(f"Looking up weather for {location}")
-    #
-    #     return "sunny with a temperature of 70 degrees."
+    @function_tool
+    async def find_clinics(
+        self,
+        context: RunContext,
+        location: str,
+        specialty: str = "general practice"
+    ):
+        """Use this tool to find clinics in a specific area for a given specialty.
+
+        Args:
+            location: The area or city to search for clinics (e.g., "Bangalore", "Delhi")
+            specialty: The medical specialty (e.g., "cardiology", "pediatrics", "general practice")
+        """
+        logger.info(f"Finding clinics in {location} for {specialty}")
+
+        # Mock clinic data - in a real implementation, this would call a healthcare API
+        mock_clinics = {
+            "bangalore": {
+                "general practice": [
+                    {"name": "Apollo Clinic", "address": "JP Nagar, Bangalore", "rating": 4.5},
+                    {"name": "Manipal Clinic", "address": "Whitefield, Bangalore", "rating": 4.3},
+                    {"name": "Fortis La Femme", "address": "Richmond Town, Bangalore", "rating": 4.4}
+                ],
+                "cardiology": [
+                    {"name": "Narayana Health", "address": "Bommasandra, Bangalore", "rating": 4.7},
+                    {"name": "Manipal Hospital", "address": "Whitefield, Bangalore", "rating": 4.6}
+                ],
+                "pediatrics": [
+                    {"name": "Cloudnine Hospital", "address": "Bellandur, Bangalore", "rating": 4.6},
+                    {"name": "Motherhood Hospital", "address": "Sarjapur Road, Bangalore", "rating": 4.4}
+                ]
+            },
+            "delhi": {
+                "general practice": [
+                    {"name": "Apollo Hospital", "address": "Delhi", "rating": 4.6},
+                    {"name": "Fortis Escorts", "address": "Nehru Place, Delhi", "rating": 4.4}
+                ]
+            }
+        }
+
+        location_key = location.lower()
+        if location_key in mock_clinics and specialty.lower() in mock_clinics[location_key]:
+            clinics = mock_clinics[location_key][specialty.lower()]
+            if clinics:
+                response = f"Found {len(clinics)} {specialty} clinics in {location}:\n"
+                for clinic in clinics:
+                    response += f"• {clinic['name']} - {clinic['address']} (Rating: {clinic['rating']}/5)\n"
+                return response
+
+        return f"I couldn't find any {specialty} clinics in {location}. Please try a different location or specialty."
+
+    @function_tool
+    async def get_appointment_preparation(
+        self,
+        context: RunContext,
+        appointment_type: str
+    ):
+        """Use this tool to get specific preparation guidance for a medical appointment.
+
+        Args:
+            appointment_type: The type of medical appointment (e.g., "blood test", "vaccination", "consultation", "x-ray")
+        """
+        logger.info(f"Getting preparation guidance for {appointment_type}")
+
+        # Mock preparation guidelines
+        preparation_guides = {
+            "blood test": {
+                "fasting": "Usually required for 8-12 hours before the test",
+                "what_to_bring": ["Doctor's prescription", "ID card", "Insurance card"],
+                "tips": ["Stay hydrated unless otherwise instructed", "Wear a short-sleeved shirt for easy access"],
+                "avoid": ["Alcohol for 24 hours before", "Heavy exercise immediately before"]
+            },
+            "vaccination": {
+                "fasting": "Not typically required",
+                "what_to_bring": ["Vaccination record/card", "ID card", "Insurance information"],
+                "tips": ["Wear clothing that allows easy access to upper arm", "Stay hydrated", "Plan to rest for 15-30 minutes after"],
+                "avoid": ["Strenuous activity immediately after vaccination"]
+            },
+            "consultation": {
+                "fasting": "Not required unless specifically advised by doctor",
+                "what_to_bring": ["List of current medications", "Medical history notes", "Insurance card", "ID"],
+                "tips": ["Write down your symptoms and questions beforehand", "Note when symptoms started and what makes them better/worse"],
+                "avoid": ["Going without noting important health changes"]
+            },
+            "x-ray": {
+                "fasting": "Not usually required",
+                "what_to_bring": ["Doctor's referral", "ID card", "Previous imaging reports if available"],
+                "tips": ["Wear loose, comfortable clothing without metal accessories", "You may need to change into a hospital gown"],
+                "avoid": ["Wearing jewelry or clothing with metal zippers/buttons in the imaging area"]
+            }
+        }
+
+        appointment_key = appointment_type.lower().strip()
+        if appointment_key in preparation_guides:
+            guide = preparation_guides[appointment_key]
+            response = f"Preparation guide for {appointment_type} appointment:\n\n"
+            response += f"���🍽��️ Fasting: {guide['fasting']}\n\n"
+            response += f"���📋 What to bring: {', '.join(guide['what_to_bring'])}\n\n"
+            response += f"���💡 Tips: {', '.join(guide['tips'])}\n\n"
+            response += f"��⚠��️ Avoid: {', '.join(guide['avoid'])}"
+            return response
+
+        return f"I don't have specific preparation guidelines for {appointment_type} appointments. For general guidance, please bring your ID, insurance information, and any doctor's notes or prescriptions."
 
 
 server = AgentServer()

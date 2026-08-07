@@ -33,36 +33,26 @@ export interface AppConfig {
 }
 
 export const APP_CONFIG_DEFAULTS: AppConfig = {
-  companyName: 'Murf AI',
-  pageTitle: 'Health Access Voice Agent - Day 2',
-  pageDescription: 'A healthcare voice agent with personality, boundaries, and language adaptation — powered by Murf Falcon',
+  companyName: 'Health Access Voice Agent',
+  pageTitle: 'Health Access Voice Agent - Powered by Murf Falcon',
+  pageDescription: 'Get healthcare information, find clinics, and prepare for appointments with your multilingual health assistant',
 
   supportsChatInput: true,
-  supportsVideoInput: true,
-  supportsScreenShare: true,
+  supportsVideoInput: false,  // Keep it simple for health access - no video needed
+  supportsScreenShare: false, // No screen sharing for health consultations
   isPreConnectBufferEnabled: true,
 
-  logo: '/murf-logo.svg',
-  accent: '#6366F1',
-  logoDark: '/murf-logo-dark.svg',
-  accentDark: '#818cf8',
-  startButtonText: 'Start talking',
+  logo: '/healthcare-logo.svg',  // We'll create this or use a default
+  accent: '#10B981',           // Green color for healthcare/wellness
+  logoDark: '/healthcare-logo-dark.svg',
+  accentDark: '#34D399',
+  startButtonText: 'Start Health Consultation',
 
-  // optional: audio visualization configuration
-  // audioVisualizerType: 'bar',
-  // audioVisualizerColor: '#002cf2',
-  // audioVisualizerColorDark: '#1fd5f9',
-  // audioVisualizerColorShift: 0.3,
-  // audioVisualizerBarCount: 5,
-  // audioVisualizerType: 'radial',
-  // audioVisualizerRadialBarCount: 24,
-  // audioVisualizerRadialRadius: 100,
-  // audioVisualizerType: 'grid',
-  // audioVisualizerGridRowCount: 25,
-  // audioVisualizerGridColumnCount: 25,
-  // audioVisualizerType: 'wave',
-  // audioVisualizerWaveLineWidth: 3,
-  // audioVisualizerType: 'aura',
+  // Audio visualization - using bar style for clean, professional look
+  audioVisualizerType: 'bar',
+  audioVisualizerColor: '#10B981',
+  audioVisualizerColorDark: '#34D399',
+  audioVisualizerBarCount: 6,
 
   // agent dispatch configuration
   agentName: process.env.AGENT_NAME ?? undefined,
