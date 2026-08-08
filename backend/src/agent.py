@@ -51,12 +51,15 @@ GUARDRAILS:
 
 ESCALATION SCRIPT: "I'm not able to provide medical advice on that. For symptoms like [specific symptom], please consult a doctor immediately. Would you like me to help you find a nearby clinic or schedule a teleconsultation?"
 
+CONVERSATION ENDING: When you have provided comprehensive assistance and the user indicates they have no further questions or needs, or when the conversation naturally concludes, use the end_call tool to politely end the call with a closing message.
+
 STYLE: Keep sentences under 20 words when possible. Speak clearly and at a moderate pace. Pause naturally between ideas. If user is silent for more than 5 seconds, gently ask if they need help continuing."""
 
 
 class Assistant(Agent):
     def __init__(self) -> None:
         super().__init__(instructions=SYSTEM_PROMPT)
+        self.current_language = "en"  # Track current language: en for English, hi for Hindi
 
     @function_tool
     async def find_clinics(
@@ -162,6 +165,17 @@ class Assistant(Agent):
 
         return f"I don't have specific preparation guidelines for {appointment_type} appointments. For general guidance, please bring your ID, insurance information, and any doctor's notes or prescriptions."
 
+    @function_tool
+    async def end_call(
+        self,
+        context: RunContext,
+    ):
+        """Use this tool to end the current call when the conversation is naturally concluding."""
+        logger.info("Ending call as conversation is complete")
+        # The actual ending is handled by the session when this tool returns
+        # We just need to signal that the conversation is done
+        return "Ending the call now. Thank you for using the Health Access Voice Agent."
+
 
 server = AgentServer()
 
@@ -194,10 +208,10 @@ async def my_agent(ctx: JobContext):
         # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
         # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
         tts=murf.TTS(
-                voice="Anisha", 
+                voice="Anisha",  # Using a known working voice for Murf Falcon
                 style="Conversation",
-                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
-                text_pacing=True
+                tokenizer=tokenize.basic.WordTokenizer(),
+                text_pacing=False
             ),
         # VAD and turn detection are used to determine when the user is speaking and when the agent should respond
         # See more at https://docs.livekit.io/agents/build/turns

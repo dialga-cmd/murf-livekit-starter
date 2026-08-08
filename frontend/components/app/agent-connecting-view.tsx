@@ -25,15 +25,15 @@ export function AgentConnectingView({
 
       <div className="space-y-2 text-sm">
         <p className="flex items-center justify-center gap-2 text-muted-foreground">
-          <div className="h-2 w-2 rounded-full bg-accent animate-pulse"></div>
+          <span className="h-2 w-2 inline-block rounded-full bg-accent animate-pulse"></span>
           <span>Initializing voice pipeline...</span>
         </p>
         <p className="flex items-center justify-center gap-2 text-muted-foreground">
-          <div className="h-2 w-2 rounded-full bg-accent animate-pulse"></div>
+          <span className="h-2 w-2 inline-block rounded-full bg-accent animate-pulse"></span>
           <span>Connecting to Murf Falcon TTS...</span>
         </p>
         <p className="flex items-center justify-center gap-2 text-muted-foreground">
-          <div className="h-2 w-2 rounded-full bg-accent animate-pulse"></div>
+          <span className="h-2 w-2 inline-block rounded-full bg-accent animate-pulse"></span>
           <span>Preparing health knowledge base...</span>
         </p>
       </div>

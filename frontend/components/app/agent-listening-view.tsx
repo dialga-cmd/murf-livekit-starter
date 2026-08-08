@@ -27,11 +27,11 @@ export function AgentListeningView({
 
       <div className="space-y-3 text-center">
         <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <div className="h-2 w-2 rounded-full bg-accent animate-pulse"></div>
+          <span className="h-2 w-2 inline-block rounded-full bg-accent animate-pulse"></span>
           <span>Processing your speech...</span>
         </p>
         <p className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <div className="h-2 w-2 rounded-full bg-accent animate-pulse"></div>
+          <span className="h-2 w-2 inline-block rounded-full bg-accent animate-pulse"></span>
           <span>Understanding your health query...</span>
         </p>
       </div>
