@@ -31,3 +31,11 @@ KMS
 
 # GitHub CLI
 .github/personal-instructions.md
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+*-shm
+*-wal
+

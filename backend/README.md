@@ -66,11 +66,26 @@ uv run python src/agent.py start
 
 ## Configuration
 
-All configuration lives in [`src/agent.py`](src/agent.py).
+All configuration lives in [`src/agent.py`](src/agent.py) and [`src/database.py`](src/database.py).
+
+### Database
+
+The agent uses an SQLite database for persistent caller memory:
+- Database file: `caller_memory.db` (created automatically)
+- Schema includes: user_id, name, language_preference, facts (JSON), last_interaction, created_at
+- Automatic initialization on module import
+- Functions for saving, retrieving, updating, and deleting caller data
 
 ### System prompt
 
 The `SYSTEM_PROMPT` constant at the top of `agent.py` controls what your agent does. Change it to build any voice-powered use case.
+
+#### Day 4 Enhanced Health Access Prompt
+The default system prompt has been enhanced for the Health Access track with:
+- Memory & information gathering capabilities
+- Appointment booking functionality
+- Explicit permission requirements before saving personal information
+- Health-specific facts tracking (age band, ongoing conditions, last triage outcome)
 
 #### Example prompts
 
@@ -183,6 +198,12 @@ uv run pytest
 
 Tests are in [`tests/test_agent.py`](tests/test_agent.py) and use LLM-as-judge evaluations to verify the agent behaves correctly (friendly greetings, grounding, refusing harmful requests).
 
+### Day 4 Added Tests
+New test files were added to verify the Day 4 implementations:
+- [`tests/test_database.py`](tests/test_database.py) - Database functionality tests
+- [`tests/test_agent_memory.py`](tests/test_agent_memory.py) - Agent memory tool tests
+- [`backend/test_appointment.py`](backend/test_appointment.py) - Appointment booking tests
+
 To run tests in CI, you'll need to add `LIVEKIT_URL`, `LIVEKIT_API_KEY`, and `LIVEKIT_API_SECRET` as repository secrets.
 
 ## Deployment
@@ -212,13 +233,18 @@ docker run --env-file .env.local murf-voice-agent
 ```
 backend/
 ├── src/
-│   └── agent.py          # Agent entrypoint — pipeline, prompt, config
+│   ├── agent.py          # Agent entrypoint — pipeline, prompt, config
+│   └── database.py       # SQLite database for caller memory persistence
 ├── tests/
-│   └── test_agent.py     # LLM-judged eval suite
+│   ├── test_agent.py     # LLM-judged eval suite
+│   ├── test_database.py  # Database functionality tests
+│   └── test_agent_memory.py # Agent memory tool tests
+├── backend/
+│   └── test_appointment.py # Appointment booking tests
 ├── .env.example           # Environment variable template
 ├── pyproject.toml         # Python dependencies (uv)
 ├── Dockerfile             # Production container
-└── railway.toml           # Railway deploy config
+�������└── railway.toml           # Railway deploy config
 ```
 
 ## Links

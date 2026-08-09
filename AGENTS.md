@@ -114,6 +114,12 @@ Edit the `voice` argument in `murf.TTS(...)` in `backend/src/agent.py`. Browse v
 ### Add a tool to the agent
 Add a method to the `Assistant` class in `backend/src/agent.py` with the `@function_tool` decorator. There's a commented example (weather lookup) in the file. Import `function_tool` and `RunContext` from `livekit.agents`.
 
+#### Day 4 Added Tools:
+The agent now includes these additional tools for the Health Access track:
+- `look_up_caller`: Retrieves caller information by user_id
+- `save_caller_info`: Saves caller information with explicit permission
+- `book_appointment`: Books demo appointments with validation
+
 ### Switch the LLM
 Replace the `llm=google.LLM(...)` call in `agent.py`. For OpenAI: install `livekit-agents[openai]`, set `OPENAI_API_KEY`, import `openai` from `livekit.plugins`, and use `openai.LLM(...)`.
 

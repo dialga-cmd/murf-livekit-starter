@@ -10,6 +10,7 @@ The React/Next.js frontend for the Voice Agent Starter. Built with [LiveKit Agen
 - Multiple audio visualizer styles (`bar`, `grid`, `radial`, `wave`, `aura`)
 - Light/dark theme switching with system preference detection
 - Customizable branding, colors, and UI text via configuration
+- Optimized for Day 4 Health Access features including memory-based conversations and appointment booking flows
 
 ## Setup
 

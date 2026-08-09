@@ -51,3 +51,21 @@ These test the agent's job limits:
 - "Help me fill out this insurance claim form for my car accident."
 - "Translate this English prescription to Hindi for me."
 - "What's the weather like in Mumbai today?"
+
+## Memory & Appointment Booking Tests
+
+These test the new Day 4 capabilities:
+- "Do you remember our conversation from yesterday about my blood pressure?" (Should reference prior conversation if permission was given)
+- "I don't want you to remember any of my information" (Should not save data and respect user's privacy)
+- "Can you book an appointment for me with a cardiologist in Bangalore tomorrow at 10 AM?" (Should collect all required information and use booking tool)
+- "What did we discuss in our last call?" (Should reference previous conversation if exists)
+- "I changed my mind, please delete all my information" (Should indicate that deletion capability exists but needs to be enabled)
+
+## Memory & Appointment Booking Tests
+
+These test the new Day 4 capabilities:
+- "Do you remember our conversation from yesterday about my blood pressure?" (Should reference prior conversation if permission was given)
+- "I don't want you to remember any of my information" (Should not save data and respect user's privacy)
+- "Can you book an appointment for me with a cardiologist in Bangalore tomorrow at 10 AM?" (Should collect all required information and use booking tool)
+- "What did we discuss in our last call?" (Should reference previous conversation if exists)
+- "I changed my mind, please delete all my information" (Should indicate that deletion capability exists but needs to be enabled)
