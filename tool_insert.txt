@@ -1,0 +1,48 @@
+
+    @function_tool
+    async def get_personalized_health_tips(
+        self,
+        context: RunContext,
+        user_id: str,
+    ):
+        """Retrieve personalized health tips based on caller's stored information (age band, ongoing conditions).
+        Use this tool after obtaining caller's consent and having their info in memory.
+        Args:
+            user_id: Unique identifier for the caller
+        """
+        logger.info(f"=== GET_PERSONALIZED_HEALTH_TIPS CALLED ===")
+        logger.info(f"user_id: {user_id}")
+        caller_info = database.get_caller(user_id)
+        if not caller_info:
+            return f"No prior information found for user_id: {user_id}. Please gather information first."
+        facts = caller_info.get('facts', {})
+        age_band = facts.get('age_band')
+        conditions = facts.get('ongoing_conditions', [])
+        if isinstance(conditions, str):
+            conditions = [c.strip() for c in conditions.split(',') if c.strip()]
+        tips = []
+        # General wellness based on age
+        if age_band:
+            if '20-30' in age_band or '30-40' in age_band:
+                tips.append("For your age group, focus on regular exercise, balanced diet, and preventive check-ups.")
+            elif '40-50' in age_band:
+                tips.append("In your 40s, monitor blood pressure and cholesterol regularly; include strength training.")
+            elif '50+' in age_band:
+                tips.append("For 50+, prioritize bone health (calcium, vitamin D), regular screenings for diabetes, hypertension, and cancer.")
+        # Condition-specific tips
+        condition_map = {
+            'diabetes': ["Monitor blood sugar levels as advised by your doctor.", "Check feet daily for any cuts or sores.", "Maintain a diet low in refined sugars and high in fiber."],
+            'hypertension': ["Limit salt intake to less than 5g per day.", "Engage in moderate exercise like brisk walking 30 mins most days.", "Avoid alcohol and smoking."],
+            'asthma': ["Identify and avoid triggers (dust, pollen, smoke).", "Use inhaler as prescribed; keep rescue inhaler handy.", "Get vaccinated against flu and pneumonia."],
+        }
+        for cond in conditions:
+            cond_lower = cond.lower()
+            if cond_lower in condition_map:
+                tips.extend(condition_map[cond_lower])
+            else:
+                tips.append(f"For {cond}, follow your doctor's advice and maintain regular follow-ups.")
+        if not tips:
+            tips.append("Maintain a healthy lifestyle with balanced diet, regular exercise, adequate sleep, and stress management.")
+        # Join tips
+        tip_text = "\n• ".join(tips)
+        return f"Here are personalized health tips for you:\n\n• {tip_text}\n\nRemember: These are general guidelines. Always follow your doctor's specific advice."

@@ -1,6 +1,8 @@
 import logging
 import os
 import json
+import re
+import requests
 from dotenv import load_dotenv
 from livekit import rtc
 from livekit.agents import (
@@ -75,6 +77,7 @@ MEMORY & INFORMATION GATHERING:
   * Ongoing conditions (e.g., diabetes, hypertension, asthma - but do not store specific medical notes)
   * Last triage outcome or advice given
   * Language preference observed during conversation
+  * After saving information, you can offer personalized health tips based on the caller's age band and ongoing conditions using the get_personalized_health_tips tool.
 
 APPOINTMENT BOOKING:
 - You can help users book medical appointments using the book_appointment tool
@@ -88,6 +91,16 @@ APPOINTMENT BOOKING:
 - Always verify the information with the user before booking
 - Remind users that this is a demo booking system and they should verify with actual clinics
 - After booking, provide the confirmation details and any necessary preparation information
+
+SYMPTOM ASSESSMENT:
+- You can assess the urgency of symptoms using the assess_symptoms_urgency tool
+- When users describe symptoms, use this tool to determine if they need emergency, urgent, or routine care
+- Based on the assessment, provide appropriate guidance:
+  * For emergency: Advise calling emergency services (108) or going to ER immediately
+  * For urgent: Recommend seeing a doctor today or visiting urgent care
+  * For routine: Suggest scheduling a routine appointment with their physician
+- Always remind users that this is not a diagnosis but guidance on when to seek medical evaluation
+- Never use this tool to diagnose specific conditions or replace professional medical advice
 
 GUARDRAILS:
 - NEVER diagnose medical conditions or state "you have X disease"
@@ -372,6 +385,246 @@ class Assistant(Agent):
         response += f"Please arrive 15 minutes before your scheduled time."
 
         return response
+
+    @function_tool
+    async def assess_symptoms_urgency(
+        self,
+        context: RunContext,
+        symptoms: str,
+    ):
+        """Assess the urgency of symptoms based on standard medical guidelines to determine if emergency, urgent, or routine care is needed.
+        Enhanced with free NIH/FDA medication interaction checks.
+
+        Args:
+            symptoms: Description of symptoms experienced by the user
+        """
+        logger.info(f"=== ASSESS_SYMPTOMS_URGENCY CALLED ===")
+
+        # Handle None symptoms
+        if symptoms is None:
+            symptoms_str = ""
+        else:
+            symptoms_str = str(symptoms)
+
+        logger.info(f"symptoms: {symptoms_str}")
+
+        # NEW: First check if symptoms might be medication-related using free government APIs
+        med_guidance = self._check_medication_side_effects(symptoms_str)
+        if med_guidance:
+            return med_guidance
+
+        try:
+            # Convert to lowercase for easier matching
+            symptoms_lower = symptoms_str.lower().strip()
+
+            # Emergency symptoms requiring immediate attention (call ambulance or go to ER)
+            emergency_indicators = [
+                "chest pain", "heart attack", "heart pain",
+                "difficulty breathing", "shortness of breath", "can't breathe", "breathlessness",
+                "severe bleeding", "uncontrolled bleeding", "bleeding heavily",
+                "sudden weakness", "weakness on one side", "facial drooping", "slurred speech", "stroke",
+                "severe headache", "worst headache of life", "worst headache ever", "worst headache of my life",
+                "loss of consciousness", "fainting", "unconscious",
+                "severe burns", "major trauma", "broken bone", "compound fracture",
+                "choking", "obstructed airway",
+                "severe abdominal pain", "rigid abdomen",
+                "suicidal", "self harm", "want to die", "suicide"
+            ]
+
+            # Urgent symptoms requiring same-day medical attention
+            urgent_indicators = [
+                "high fever", "fever over 102", "fever over 39", "very high fever",
+                "moderate bleeding", "persistent bleeding",
+                "vomiting blood", "blood in vomit",
+                "blood in stool", "rectal bleeding", "blood in my stool",
+                "severe vomiting", "continuous vomiting",
+                "severe diarrhea", "watery diarrhea",
+                "difficulty swallowing", "drooling",
+                "severe pain", "excruciating pain", "unbearable pain", "severe abdominal pain", "excruciating abdominal pain",
+                "swelling face", "swollen lips", "swollen tongue", "allergic reaction",
+                "moderate asthma attack", "wheezing",
+                "urinary blockage", "can't urinate",
+                "testicular pain", "scrotal pain",
+                "pregnant with bleeding", "pregnant with pain",
+                "high fever with rash", "fever with stiff neck", "stiff neck with fever"
+            ]
+
+            # Check for emergency symptoms
+            for indicator in emergency_indicators:
+                if indicator in symptoms_lower:
+                    return f"""Based on the symptoms you've described ({symptoms}), this appears to be a MEDICAL EMERGENCY.
+
+Immediate actions required:
+• Call emergency services immediately (dial 108 in India for ambulance)
+• Or go to the nearest hospital emergency room right away
+• Do not delay seeking emergency care
+
+This assessment is based on standard medical emergency guidelines. When in doubt, always err on the side of caution and seek immediate medical attention."""
+
+            # Check for urgent symptoms
+            for indicator in urgent_indicators:
+                if indicator in symptoms_lower:
+                    return f"""Based on the symptoms you've described ({symptoms}), this requires URGENT medical attention within 24 hours.
+
+Recommended actions:
+• Contact your doctor today or visit an urgent care clinic
+• If symptoms worsen before seeing a doctor, seek emergency care
+• Monitor symptoms closely and seek immediate help if you develop emergency symptoms like chest pain, difficulty breathing, or severe bleeding
+
+This assessment is based on standard medical guidelines. This is not a diagnosis but a determination of how quickly you should seek medical evaluation."""
+
+            # Default to routine care for mild or unspecified symptoms
+            return f"""Based on the symptoms you've described ({symptoms}), this appears suitable for ROUTINE medical evaluation.
+
+Recommended actions:
+• Schedule an appointment with your primary care physician
+• Monitor symptoms and seek care if they worsen or persist beyond a few days
+• Practice self-care: rest, hydration, and over-the-counter remedies as appropriate for your symptoms
+• Seek urgent care if symptoms worsen or you develop concerning signs like fever, increasing pain, or changes in mental status
+
+This assessment is based on standard medical guidelines for symptom triage. This is not medical advice but guidance on when to seek evaluation."""
+
+        except Exception as e:
+            logger.error(f"Error in assess_symptoms_urgency: {e}")
+            return f"I'm unable to assess the severity of your symptoms at the moment due to a technical issue. For any concerning symptoms, please err on the side of caution and consult with a healthcare provider. If you're experiencing severe symptoms like chest pain, difficulty breathing, or severe bleeding, seek emergency medical care immediately."
+
+    def _check_medication_side_effects(self, symptoms_text):
+        """Check if symptoms might be medication-related using free NIH/FDA APIs.
+        Returns guidance if medication link found, None otherwise.
+        """
+        try:
+            # Extract potential medication names from the text
+            # Look for patterns like: "taking X", "on X", "since starting X", etc.
+            med_patterns = [
+                r'(?:taking|took|on|using|prescribed|since\s+starting|after\s+taking)\s+([a-zA-Z][a-zA-Z\-]+)',
+                r'([a-zA-Z][a-zA-Z\-]+)\s+(?:causing|gave|made\s+me|side\s+effect|adverse\s+reaction)',
+                r'(?:medicine|medication|drug|pill)s?\s+([a-zA-Z][a-zA-Z\-]+)',
+                r'([a-zA-Z][a-zA-Z\-]+)\s+tablet|capsule|drug'
+            ]
+
+            potential_meds = set()  # Use set to avoid duplicates
+
+            for pattern in med_patterns:
+                matches = re.findall(pattern, symptoms_text, re.IGNORECASE)
+                for match in matches:
+                    # Filter out common false positives
+                    if match.lower() not in ['the', 'and', 'for', 'with', 'have', 'been', 'this', 'that', 'feel', 'having']:
+                        potential_meds.add(match.lower())
+
+            # Limit to reasonable number to prevent excessive API calls
+            potential_meds = list(potential_meds)[:3]
+
+            if not potential_meds:
+                return None
+
+            logger.info(f"Checking potential medications: {potential_meds}")
+
+            # Check each potential medication
+            for med_name in potential_meds:
+                try:
+                    # Step 1: Get RxNorm ID for the medication (free, no auth)
+                    rxnorm_url = f"https://rxnav.nlm.nih.gov/REST/approximateTerm.json?term={med_name}&maxEntries=1"
+                    rxnorm_resp = requests.get(rxnorm_url, timeout=3)
+
+                    if rxnorm_resp.status_code != 200:
+                        logger.debug(f"RxNorm lookup failed for {med_name}: {rxnorm_resp.status_code}")
+                        continue
+
+                    rxnorm_data = rxnorm_resp.json()
+                    candidates = rxnorm_data.get('approximateTerm', {}).get('candidate', [])
+
+                    if not candidates:
+                        logger.debug(f"No RxNorm candidates found for {med_name}")
+                        continue
+
+                    rxcui = candidates[0]['rxcui']
+                    med_display_name = candidates[0]['name']
+                    logger.info(f"Found RxNorm ID {rxcui} for {med_name} -> {med_display_name}")
+
+                    # Step 2: Check DailyMed for side effects/adverse reactions (free, no auth)
+                    dailymed_url = f"https://dailymed.nlm.nih.gov/dailymed/services/v2/spls/{rxcui}.json"
+                    dailymed_resp = requests.get(dailymed_url, timeout=5)
+
+                    if dailymed_resp.status_code != 200:
+                        logger.debug(f"DailyMed lookup failed for {rxcui}: {dailymed_resp.status_code}")
+                        # Try OpenFDA as fallback
+                        if self._check_openfda_adae(med_display_name, symptoms_text):
+                            return self._generate_medication_guidance(med_display_name, symptoms_text)
+                        continue
+
+                    # Parse DailyMed XML/JSON for adverse reactions section
+                    try:
+                        med_data = dailymed_resp.json()
+                        # Look for sections related to adverse reactions/side effects
+                        spl_sections = med_data.get('spl', {}).get('section', [])
+
+                        adverse_found = False
+                        for section in spl_sections:
+                            title = section.get('title', '').lower()
+                            if any(keyword in title for keyword in ['adverse', 'side effect', 'undesirable', 'reaction']):
+                                text_content = str(section.get('text', ''))
+                                # Simple check: if any symptom keywords appear in the side effects text
+                                symptom_words = symptoms_text.lower().split()
+                                if any(word in text_content.lower() for word in symptom_words if len(word) > 3):
+                                    adverse_found = True
+                                    break
+
+                        if adverse_found:
+                            return self._generate_medication_guidance(med_display_name, symptoms_text)
+
+                    except (ValueError, KeyError, TypeError) as parse_error:
+                        logger.debug(f"Could not parse DailyMed JSON for {rxcui}: {parse_error}")
+                        # Continue to try OpenFDA
+
+                    # Step 3: Fallback to OpenFDA adverse event database
+                    if self._check_openfda_adae(med_display_name, symptoms_text):
+                        return self._generate_medication_guidance(med_display_name, symptoms_text)
+
+                except Exception as med_error:
+                    logger.debug(f"Medication check failed for {med_name}: {med_error}")
+                    continue  # Try next medication
+
+            return None  # No medication link found after checking all candidates
+
+        except Exception as e:
+            logger.debug(f"Medication side effect check encountered error (non-critical): {e}")
+            return None  # Fail gracefully - don't break main symptom assessment
+
+    def _check_openfda_adae(self, medication_name, symptoms_text):
+        """Check OpenFDA for adverse event reports linking medication to symptoms."""
+        try:
+            # Clean medication name for search
+            clean_med = medication_name.lower().strip()
+
+            # OpenFDA adverse events endpoint
+            # Search for reports where patient took this medication and experienced symptoms similar to user's
+            symptoms_for_search = '%20'.join(symptoms_text.lower().split()[:3])  # First 3 significant words
+
+            openfda_url = f"https://api.fda.gov/drug/event.json?search=patient.drug.medicinalproduct:{clean_med}+AND+patient.reaction.reactionmeddrapt:{symptoms_for_search}&limit=1"
+
+            response = requests.get(openfda_url, timeout=5)
+
+            if response.status_code == 200:
+                data = response.json()
+                results = data.get('results', [])
+                return len(results) > 0  # Found at least one matching report
+
+            return False
+        except Exception as e:
+            logger.debug(f"OpenFDA check failed: {e}")
+            return False
+
+    def _generate_medication_guidance(self, medication_name, symptoms_text):
+        """Generate guidance when medication-side effect link is found."""
+        return f"""Based on your description, this symptom might be related to medication you're taking.
+
+{medication_name.title()} has been associated with similar symptoms in some patients.
+
+Important: Do not stop any medication without consulting your doctor or pharmacist.
+Please speak with your healthcare provider about whether this symptom could be a side effect.
+
+If symptoms are severe or worsening, seek medical attention.
+If you suspect this is a side effect, your doctor may be able to adjust your dosage or switch medications."""
 
     @function_tool
     async def end_call(

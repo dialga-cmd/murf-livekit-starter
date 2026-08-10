@@ -140,6 +140,19 @@ The Day 4 implementation has been completed with the following features:
 
 ---
 
+## ������ ���� ���� �� ���� �� �� 📊 Day 5 Implementation Status
+
+The Day 5 implementation has been completed with the following features:
+
+- ������ ���� ���� � ���� �� �� ✅ **Symptom Triage Tool**: Added `assess_symptoms_urgency` function tool that analyzes user-described symptoms and returns triage level (emergency/urgent/routine) with appropriate guidance
+- ������ ���� ���� � ���� �� �� ✅ **Medical Guidelines Based**: Uses standard emergency medicine guidelines (similar to WHO/NHS protocols) to determine symptom urgency
+- ������ ���� ���� � ���� �� �� ✅ **Emergency Detection**: Identifies life-threatening symptoms like chest pain, difficulty breathing, severe bleeding, stroke symptoms, and suicidal ideation
+- ������ ���� ���� � ���� �� �� ✅ **Urgent Care Identification**: Detects symptoms requiring same-day attention like high fever, vomiting blood, severe diarrhea, etc.
+- ������ ���� ���� � ���� �� �� ✅ **Routine Care Guidance**: Provides self-care advice for mild symptoms that can wait for routine appointment
+- ������ ���� ���� � ���� �� �� ✅ **Graceful Error Handling**: Handles API failures or technical issues by advising users to seek caution and consult healthcare providers
+- ������ ���� ���� � ���� �� �� ✅ **Clear Attribution**: Informs users that guidance is based on standard medical protocols and is not a diagnosis
+- ������ ���� ���� ���� �� �� **Data Source**: Uses local medical guidelines database (no external API calls) ensuring reliability and privacy
+
 ## Deploy
 
 Want to deploy this beyond localhost? You'll need to deploy **two services**: the backend agent and the frontend. Both must use the same LiveKit project.
