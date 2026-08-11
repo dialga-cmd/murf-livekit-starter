@@ -28,7 +28,7 @@ import database
 
 logger = logging.getLogger("agent")
 
-load_dotenv(".env.local")
+load_dotenv(".env.local", override=True)
 
 # Outbound call configuration
 OUTBOUND_TRUNK_ID = os.environ.get("LIVEKIT_SIP_OUTBOUND_TRUNK_ID", "")

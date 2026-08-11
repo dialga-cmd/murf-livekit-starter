@@ -188,6 +188,14 @@ Default is Google Gemini. To switch:
 - **Gemini (default):** Set `GOOGLE_API_KEY` in `.env.local`
 - **OpenAI:** Set `OPENAI_API_KEY`, install `livekit-agents[openai]`, and change the `llm=` argument
 
+## Day 6 Outbound Calling
+
+The Day 6 implementation introduces outbound SIP calling functionality:
+- Dynamic detection of outbound vs inbound calls based on metadata.
+- Automated dialing with connection handling (`_dial_and_greet_outbound`).
+- Compliant opening messages detailing identity, intent, and opt-out instructions.
+- SIP Trunk configuration via `LIVEKIT_SIP_OUTBOUND_TRUNK_ID`.
+
 ## Testing
 
 The project includes an eval suite based on the LiveKit Agents [testing framework](https://docs.livekit.io/agents/build/testing/):

@@ -144,14 +144,25 @@ The Day 4 implementation has been completed with the following features:
 
 The Day 5 implementation has been completed with the following features:
 
-- ������ ���� ���� � ���� �� �� ✅ **Symptom Triage Tool**: Added `assess_symptoms_urgency` function tool that analyzes user-described symptoms and returns triage level (emergency/urgent/routine) with appropriate guidance
-- ������ ���� ���� � ���� �� �� ✅ **Medical Guidelines Based**: Uses standard emergency medicine guidelines (similar to WHO/NHS protocols) to determine symptom urgency
-- ������ ���� ���� � ���� �� �� ✅ **Emergency Detection**: Identifies life-threatening symptoms like chest pain, difficulty breathing, severe bleeding, stroke symptoms, and suicidal ideation
-- ������ ���� ���� � ���� �� �� ✅ **Urgent Care Identification**: Detects symptoms requiring same-day attention like high fever, vomiting blood, severe diarrhea, etc.
-- ������ ���� ���� � ���� �� �� ✅ **Routine Care Guidance**: Provides self-care advice for mild symptoms that can wait for routine appointment
-- ������ ���� ���� � ���� �� �� ✅ **Graceful Error Handling**: Handles API failures or technical issues by advising users to seek caution and consult healthcare providers
-- ������ ���� ���� � ���� �� �� ✅ **Clear Attribution**: Informs users that guidance is based on standard medical protocols and is not a diagnosis
-- ������ ���� ���� ���� �� �� **Data Source**: Uses local medical guidelines database (no external API calls) ensuring reliability and privacy
+-        ✅ **Symptom Triage Tool**: Added `assess_symptoms_urgency` function tool that analyzes user-described symptoms and returns triage level (emergency/urgent/routine) with appropriate guidance
+-        ✅ **Medical Guidelines Based**: Uses standard emergency medicine guidelines (similar to WHO/NHS protocols) to determine symptom urgency
+-        ✅ **Emergency Detection**: Identifies life-threatening symptoms like chest pain, difficulty breathing, severe bleeding, stroke symptoms, and suicidal ideation
+-        ✅ **Urgent Care Identification**: Detects symptoms requiring same-day attention like high fever, vomiting blood, severe diarrhea, etc.
+-        ✅ **Routine Care Guidance**: Provides self-care advice for mild symptoms that can wait for routine appointment
+-        ✅ **Graceful Error Handling**: Handles API failures or technical issues by advising users to seek caution and consult healthcare providers
+-        ✅ **Clear Attribution**: Informs users that guidance is based on standard medical protocols and is not a diagnosis
+-       **Data Source**: Uses local medical guidelines database (no external API calls) ensuring reliability and privacy
+
+---
+
+## 📞 Day 6 Implementation Status
+
+The Day 6 implementation has been completed with the following outbound calling features:
+
+- ✅ **Outbound Call Configuration**: SIP trunk integration for LiveKit outbound calling capabilities.
+- ✅ **Opening Message**: Agent explicitly states who they are (Priya from Apollo Tele Health), why they are calling (medication/vaccination reminders), and how to stop the call within the first two sentences.
+- ✅ **Opt-out Handling**: Agent respects "stop" commands and uses an `end_call` tool immediately without re-engaging.
+- ✅ **Dynamic Mode Switching**: The agent detects phone numbers in job metadata to switch to outbound calling mode automatically, whilst maintaining normal inbound behaviors.
 
 ## Deploy
 
