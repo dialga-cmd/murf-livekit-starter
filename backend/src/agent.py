@@ -3,6 +3,8 @@ import os
 import json
 import re
 import requests
+import asyncio
+import time
 from dotenv import load_dotenv
 from livekit import rtc
 from livekit.agents import (
@@ -18,6 +20,7 @@ from livekit.agents import (
     function_tool,
     RunContext,
 )
+from livekit import api as livekit_api
 from livekit.plugins import murf, silero, google, deepgram, noise_cancellation
 
 # Import our database module
@@ -27,9 +30,92 @@ logger = logging.getLogger("agent")
 
 load_dotenv(".env.local")
 
+# Outbound call configuration
+OUTBOUND_TRUNK_ID = os.environ.get("LIVEKIT_SIP_OUTBOUND_TRUNK_ID", "")
+
+async def _dial_and_greet_outbound(ctx: JobContext, session: AgentSession, phone_number: str, t0: float):
+    """Handle outbound call: dial the user, wait until they answer, then greet with zero ringback."""
+    from livekit import api as lk_api
+
+    trunk_id = OUTBOUND_TRUNK_ID
+    if not trunk_id:
+        logger.error("LIVEKIT_SIP_OUTBOUND_TRUNK_ID not set — cannot dial outbound")
+        return
+
+    lk = lk_api.LiveKitAPI(
+        url=os.environ["LIVEKIT_URL"],
+        api_key=os.environ["LIVEKIT_API_KEY"],
+        api_secret=os.environ["LIVEKIT_API_SECRET"],
+    )
+    try:
+        logger.info("Dialing %s (trunk %s)...", phone_number, trunk_id)
+        await lk.sip.create_sip_participant(
+            lk_api.CreateSIPParticipantRequest(
+                sip_trunk_id=trunk_id,
+                sip_call_to=phone_number,
+                room_name=ctx.room.name,
+                participant_identity="phone-user",
+                wait_until_answered=True,
+            )
+        )
+        logger.info("User answered at %.1fs", time.monotonic() - t0)
+    except Exception:
+        logger.exception("Outbound SIP call failed")
+        return
+    finally:
+        await lk.aclose()
+
+    # Participant joins as soon as user answers — find them (may need a brief moment)
+    participant: rtc.RemoteParticipant | None = ctx.room.remote_participants.get("phone-user")
+    if participant is None:
+        try:
+            participant = await asyncio.wait_for(ctx.wait_for_participant(), timeout=5.0)
+        except asyncio.TimeoutError:
+            logger.error("Timed out waiting for participant to join room")
+            return
+
+    # Short, consistent settle so the SIP RTP path + LiveKit egress are flowing
+    # before we push the first greeting frame. Whether or not the inbound track
+    # fired, the outbound bridge needs a moment or the first audio is choppy.
+    await asyncio.sleep(0.7)
+
+    # Play the greeting BEFORE calling set_participant() so that STT is not yet active.
+    # set_participant() activates the input pipeline (VAD + STT); starting it during the
+    # greeting causes transcriptions that interrupt or break up the audio.
+    # According to requirements: say who's calling, why, and how to make it stop
+    opening_message = (
+        "Hello, this is Priya from Apollo Tele Health. "
+        "I'm calling to remind you about your medication schedule or vaccination appointment. "
+        "If you'd like to stop receiving these reminder calls, please say 'stop' at any time. "
+        "How can I assist you today?"
+    )
+
+    try:
+        handle = session.say(opening_message, allow_interruptions=False)
+        logger.info("Greeting started at %.1fs", time.monotonic() - t0)
+        await asyncio.wait_for(handle.wait_for_playout(), timeout=60.0)
+        logger.info("Opening greeting played at %.1fs", time.monotonic() - t0)
+    except Exception:
+        logger.exception("Failed to play opening message")
+        return
+
+    # Activate STT so the agent can listen to the user's spoken reply.
+    try:
+        session.room_io.set_participant(participant.identity)
+        logger.info("STT activated at %.1fs", time.monotonic() - t0)
+    except Exception:
+        logger.exception("Failed to activate STT")
+        return
+
 # Change this prompt to change what your voice agent does.
 # See README.md for example prompts (customer support, language tutor, receptionist).
 SYSTEM_PROMPT = """IDENTITY: You are Priya, a healthcare assistant at Apollo Tele Health, India's leading telemedicine service. You work with a network of verified clinics and doctors across India.
+
+OUTBOUND CALL HANDLING:
+- If this is an outbound call (you initiated the call to the user), you must follow these rules:
+  1. In your first two sentences, clearly state: who you are (Priya from Apollo Tele Health), why you're calling (medication/vaccination reminder), and how to stop receiving calls (say 'stop' at any time)
+  2. If the user says "stop" or indicates they do not wish to receive further calls, you must immediately invoke the end_call tool to end the conversation
+  3. After ending the call due to a stop request, do not attempt to re-engage or continue the conversation
 
 OBJECTIVES: A successful call helps users: understand basic health information, find appropriate clinics or specialists, prepare for appointments (knowing what to bring, fasting requirements), get general wellness tips, understand insurance/telehealth options, feel supported in their healthcare journey, and book medical appointments.
 
@@ -648,6 +734,18 @@ def prewarm(proc: JobProcess):
 server.setup_fnc = prewarm
 
 
+def _get_job_metadata(ctx: JobContext) -> dict:
+    """Extract metadata from job context"""
+    try:
+        return json.loads(ctx.job.metadata) if ctx.job.metadata else {}
+    except:
+        return {}
+
+def _get_job_phone(ctx: JobContext) -> str | None:
+    """Extract phone number from job metadata for outbound calls"""
+    metadata = _get_job_metadata(ctx)
+    return metadata.get("phone_number")
+
 @server.rtc_session(agent_name="my-agent")
 async def my_agent(ctx: JobContext):
     # Logging setup
@@ -655,6 +753,11 @@ async def my_agent(ctx: JobContext):
     ctx.log_context_fields = {
         "room": ctx.room.name,
     }
+
+    # Check if this is an outbound call
+    job_metadata = _get_job_metadata(ctx)
+    is_outbound = job_metadata.get("phone_number") is not None
+    phone_number = job_metadata.get("phone_number") if is_outbound else None
 
     # Set up a voice AI pipeline using Murf Falcon, Gemini, Deepgram, and the LiveKit turn detector
     session = AgentSession(
@@ -717,8 +820,15 @@ async def my_agent(ctx: JobContext):
         ),
     )
 
-    # Join the room and connect to the user
-    await ctx.connect()
+    if is_outbound and phone_number:
+        # Handle outbound call
+        logger.info(f"Starting outbound call to {phone_number}")
+        t0 = time.monotonic()
+        await _dial_and_greet_outbound(ctx, session, phone_number, t0)
+    else:
+        # Handle inbound call (normal operation)
+        logger.info("Starting inbound call handling")
+        await ctx.connect()
 
 
 if __name__ == "__main__":
