@@ -4,18 +4,19 @@ Test script for the assess_symptoms_urgency tool
 """
 
 import asyncio
-import sys
 import os
+import sys
 
 # Add the src directory to the path so we can import the agent
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+
 
 from agent import Assistant
-from livekit.agents import RunContext
 
 
 class MockContext:
     """Mock RunContext for testing"""
+
     def __init__(self):
         pass
 
@@ -40,7 +41,7 @@ async def test_symptom_assessment():
         "I have severe bleeding that won't stop",
         "I have a sudden weakness on one side of my body",
         "I have the worst headache of my life",
-        "I feel suicidal and want to hurt myself"
+        "I feel suicidal and want to hurt myself",
     ]
 
     print("\nTesting EMERGENCY symptoms:")
@@ -62,7 +63,7 @@ async def test_symptom_assessment():
         "I have severe diarrhea and dehydration",
         "I have excruciating abdominal pain",
         "I'm having an allergic reaction with face swelling",
-        "I have a high fever with stiff neck"
+        "I have a high fever with stiff neck",
     ]
 
     print("\n\nTesting URGENT symptoms:")
@@ -84,7 +85,7 @@ async def test_symptom_assessment():
         "I have a minor sore throat",
         "I have a small cut on my finger",
         "I have seasonal allergies",
-        "I have mild indigestion"
+        "I have mild indigestion",
     ]
 
     print("\n\nTesting ROUTINE symptoms:")
@@ -100,14 +101,14 @@ async def test_symptom_assessment():
 
     # Test error handling (pass None or empty string)
     print("\n\nTesting edge cases:")
-    print(f"\nSymptoms: (empty string)")
+    print("\nSymptoms: (empty string)")
     result = await assistant.assess_symptoms_urgency(ctx, "")
     if "unable to assess" in result or "ROUTINE medical evaluation" in result:
         print("��✓ Handled empty string gracefully")
     else:
         print("��✗ Did not handle empty string properly")
 
-    print(f"\nSymptoms: None (will be converted to string)")
+    print("\nSymptoms: None (will be converted to string)")
     result = await assistant.assess_symptoms_urgency(ctx, None)
     if "unable to assess" in result or "ROUTINE medical evaluation" in result:
         print("��✓ Handled None gracefully")

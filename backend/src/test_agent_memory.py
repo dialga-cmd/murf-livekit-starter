@@ -3,21 +3,23 @@
 Test script to verify agent memory tools functionality
 """
 
-import sys
-import os
 import asyncio
 import json
+import os
+import sys
 
 # Add the parent directory to sys.path so we can import backend modules
 sys.path.insert(0, os.path.join(os.path.dirname(__file__)))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
 
 from src.agent import Assistant
-from livekit.agents import function_tool, RunContext
+
 
 # Mock RunContext for testing
 class MockRunContext:
     pass
+
 
 async def test_agent_memory_tools():
     print("Testing agent memory tools...")
@@ -35,17 +37,15 @@ async def test_agent_memory_tools():
 
     # Test 2: save_caller_info
     print("\n2. Testing save_caller_info...")
-    test_facts = json.dumps({
-        "age_band": "30-40",
-        "ongoing_conditions": ["diabetes"],
-        "last_triage_outcome": "advised to check blood sugar regularly"
-    })
+    test_facts = json.dumps(
+        {
+            "age_band": "30-40",
+            "ongoing_conditions": ["diabetes"],
+            "last_triage_outcome": "advised to check blood sugar regularly",
+        }
+    )
     result = await assistant.save_caller_info(
-        ctx,
-        "test_patient_456",
-        "Priya Sharma",
-        "en",
-        test_facts
+        ctx, "test_patient_456", "Priya Sharma", "en", test_facts
     )
     print(f"Result: {result}")
     assert "Successfully saved information" in result
@@ -63,9 +63,11 @@ async def test_agent_memory_tools():
     print("\n���������🎉 All agent memory tools tests passed!")
     return True
 
+
 async def main():
     success = await test_agent_memory_tools()
     return success
+
 
 if __name__ == "__main__":
     success = asyncio.run(main())

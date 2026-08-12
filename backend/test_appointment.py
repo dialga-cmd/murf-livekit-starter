@@ -2,10 +2,13 @@
 """Test the appointment booking functionality."""
 
 import asyncio
-from agent import Assistant
-from livekit.agents import RunContext
 
-class MockCtx: pass
+from agent import Assistant
+
+
+class MockCtx:
+    pass
+
 
 async def test_appointment_booking():
     print("Testing appointment booking functionality...")
@@ -22,7 +25,7 @@ async def test_appointment_booking():
         preferred_date="2026-08-15",
         preferred_time="10:30 AM",
         patient_name="John Doe",
-        symptoms="Fever and cough"
+        symptoms="Fever and cough",
     )
     print(result)
     assert "Appointment booked successfully!" in result
@@ -37,7 +40,7 @@ async def test_appointment_booking():
         specialty="general practice",
         preferred_date="2026-08-15",
         preferred_time="10:30 AM",
-        patient_name="John Doe"
+        patient_name="John Doe",
     )
     print(result)
     assert "Please provide all required information" in result
@@ -50,12 +53,15 @@ async def test_appointment_booking():
         specialty="general practice",
         preferred_date="2026-08-15",
         preferred_time="10:30 AM",
-        patient_name="John Doe"
+        patient_name="John Doe",
     )
     print(result)
-    assert "couldn't find any" in result.lower() or "could not find any" in result.lower()
+    assert (
+        "couldn't find any" in result.lower() or "could not find any" in result.lower()
+    )
 
     print("\\n��✅ All appointment booking tests passed!")
+
 
 if __name__ == "__main__":
     asyncio.run(test_appointment_booking())

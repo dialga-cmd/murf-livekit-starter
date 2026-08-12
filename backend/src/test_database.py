@@ -3,12 +3,18 @@
 Test script to verify database functionality for caller memory
 """
 
-import sys
 import os
+import sys
+
 sys.path.insert(0, os.path.dirname(__file__))
 
-from database import init_db, get_caller, save_caller, update_last_interaction, delete_caller
-import json
+from database import (
+    delete_caller,
+    get_caller,
+    save_caller,
+    update_last_interaction,
+)
+
 
 def test_database():
     print("Testing database functionality...")
@@ -21,7 +27,7 @@ def test_database():
     test_facts = {
         "age_band": "30-40",
         "ongoing_conditions": ["hypertension"],
-        "last_triage_outcome": "advised to monitor blood pressure"
+        "last_triage_outcome": "advised to monitor blood pressure",
     }
 
     result = save_caller(test_user_id, test_name, test_language, test_facts)
@@ -32,10 +38,10 @@ def test_database():
     caller = get_caller(test_user_id)
     if caller:
         print(f"Retrieved caller: {caller}")
-        assert caller['user_id'] == test_user_id
-        assert caller['name'] == test_name
-        assert caller['language_preference'] == test_language
-        assert caller['facts'] == test_facts
+        assert caller["user_id"] == test_user_id
+        assert caller["name"] == test_name
+        assert caller["language_preference"] == test_language
+        assert caller["facts"] == test_facts
         print("��✓ Caller retrieval test passed")
     else:
         print("��✗ Failed to retrieve caller")
@@ -76,6 +82,7 @@ def test_database():
 
     print("\n���🎉 All database tests passed!")
     return True
+
 
 if __name__ == "__main__":
     success = test_database()

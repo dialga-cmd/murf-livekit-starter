@@ -16,12 +16,10 @@ KMS
 *~
 
 # Claude Code
-.claude/settings.local.json
-.claude/worktrees/
 .claude
 
 # OpenAI Codex
-.codex/config.local.toml
+.codex
 
 # Gemini CLI
 .gemini/history/
