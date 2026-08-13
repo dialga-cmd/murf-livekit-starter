@@ -37,8 +37,8 @@ load_dotenv(".env.local", override=True)
 
 # Outbound call configuration
 OUTBOUND_TRUNK_ID = os.environ.get("LIVEKIT_SIP_OUTBOUND_TRUNK_ID", "")
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "gpt-oss-120b")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
 LLM_FALLBACK_ATTEMPT_TIMEOUT = float(
     os.environ.get("LLM_FALLBACK_ATTEMPT_TIMEOUT", "12")
 )
