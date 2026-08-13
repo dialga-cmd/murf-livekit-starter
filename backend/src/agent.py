@@ -12,6 +12,7 @@ from livekit.agents import (
     Agent,
     AgentServer,
     AgentSession,
+    ChatContext,
     JobContext,
     JobProcess,
     RunContext,
@@ -349,6 +350,8 @@ class Assistant(Agent):
             "en"  # Track current language: en for English, hi for Hindi
         )
         self._escalation_watch_tasks: dict[str, asyncio.Task[None]] = {}
+        self.call_outcome_recorded = False
+        self.call_end_requested = False
 
     @function_tool
     async def transfer_to_clinic_specialist(
@@ -364,18 +367,23 @@ class Assistant(Agent):
         logger.info("=== TRANSFER_TO_CLINIC_SPECIALIST CALLED ===")
         logger.info(f"user_request: {user_request}")
 
-        session = getattr(context, "session", None)
-        if session is None:
-            return "I will connect you to our clinic appointment specialist, Arun."
-
-        specialist = ClinicAppointmentSpecialist()
+        # Notify the frontend that a handoff is starting
         try:
-            session.update_agent(specialist)
+            room = context.session.room
+            await room.local_participant.publish_data(
+                json.dumps(
+                    {"type": "agent_handoff", "status": "switching", "to": "Arun"}
+                ).encode("utf-8"),
+                reliable=True,
+                topic="agent-status",
+            )
         except Exception:
-            logger.exception("Failed to hand off to clinic appointment specialist")
-            return "I will connect you to our clinic appointment specialist, Arun. Please hold while I transfer you."
+            logger.exception("Failed to publish handoff-start notification")
 
-        return "I will connect you to our clinic appointment specialist, Arun. Please hold while I transfer you."
+        specialist = ClinicAppointmentSpecialist(
+            chat_ctx=self.chat_ctx.copy(exclude_instructions=True)
+        )
+        return specialist, "I will connect you to our clinic appointment specialist, Arun."
 
     @function_tool
     async def look_up_caller(
@@ -544,6 +552,7 @@ class Assistant(Agent):
             category=category or "general",
             channel=channel or "voice",
         )
+        self.call_outcome_recorded = True
         return (
             f"Recorded call outcome for {normalized_user_id}: {outcome} "
             f"({category or 'general'})."
@@ -1382,14 +1391,16 @@ If you suspect this is a side effect, your doctor may be able to adjust your dos
     ):
         """Use this tool to end the current call when the conversation is naturally concluding."""
         logger.info("Ending call as conversation is complete")
+        self.call_end_requested = True
         # The actual ending is handled by the session when this tool returns
         # We just need to signal that the conversation is done
         return "Ending the call now. Thank you for using the Health Access Voice Agent."
 
 
 class ClinicAppointmentSpecialist(Agent):
-    def __init__(self) -> None:
+    def __init__(self, chat_ctx: ChatContext | None = None) -> None:
         super().__init__(
+            chat_ctx=chat_ctx,
             tts=murf.TTS(
                 voice=ARUN_VOICE_ID,
                 style="Conversation",
@@ -1418,6 +1429,23 @@ GOALS:
 """
         )
 
+    async def on_enter(self) -> None:
+        # Notify the frontend that the handoff has completed
+        try:
+            await self.session.room.local_participant.publish_data(
+                json.dumps(
+                    {"type": "agent_handoff", "status": "complete", "to": "Arun"}
+                ).encode("utf-8"),
+                reliable=True,
+                topic="agent-status",
+            )
+        except Exception:
+            logger.exception("Failed to publish handoff-complete notification")
+
+        await self.session.generate_reply(
+            instructions="Introduce yourself as Arun, the clinic appointment specialist, and offer to help with clinics, specialties, and appointment booking."
+        )
+
 
 server = AgentServer()
 
@@ -1441,6 +1469,25 @@ def _get_job_phone(ctx: JobContext) -> str | None:
     """Extract phone number from job metadata for outbound calls"""
     metadata = _get_job_metadata(ctx)
     return metadata.get("phone_number")
+
+
+def _resolve_call_user_id(ctx: JobContext, fallback_phone: str | None = None) -> str:
+    """Derive a stable caller identifier for fallback analytics writes."""
+    if fallback_phone:
+        return fallback_phone
+
+    metadata = _get_job_metadata(ctx)
+    for key in ("user_id", "caller_id", "participant_identity", "phone_number"):
+        candidate = str(metadata.get(key, "")).strip()
+        if candidate:
+            return candidate
+
+    if ctx.room.remote_participants:
+        participant_identity = next(iter(ctx.room.remote_participants.keys()), "").strip()
+        if participant_identity:
+            return participant_identity
+
+    return f"room:{ctx.room.name}"
 
 
 @server.rtc_session(agent_name="my-agent")
@@ -1502,31 +1549,52 @@ async def my_agent(ctx: JobContext):
     # Determine call type for the prompt
     call_type = "outbound" if is_outbound else "inbound"
 
-    # Start the session, which initializes the voice pipeline and warms up the models
-    await session.start(
-        agent=Assistant(call_type=call_type),
-        room=ctx.room,
-        room_options=room_io.RoomOptions(
-            audio_input=room_io.AudioInputOptions(
-                noise_cancellation=lambda params: (
-                    noise_cancellation.BVCTelephony()
-                    if params.participant.kind
-                    == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
-                    else noise_cancellation.BVC()
+    assistant = Assistant(call_type=call_type)
+    try:
+        # Start the session, which initializes the voice pipeline and warms up the models
+        await session.start(
+            agent=assistant,
+            room=ctx.room,
+            room_options=room_io.RoomOptions(
+                audio_input=room_io.AudioInputOptions(
+                    noise_cancellation=lambda params: (
+                        noise_cancellation.BVCTelephony()
+                        if params.participant.kind
+                        == rtc.ParticipantKind.PARTICIPANT_KIND_SIP
+                        else noise_cancellation.BVC()
+                    ),
                 ),
             ),
-        ),
-    )
+        )
 
-    if is_outbound and phone_number:
-        # Handle outbound call
-        logger.info(f"Starting outbound call to {phone_number}")
-        t0 = time.monotonic()
-        await _dial_and_greet_outbound(ctx, session, phone_number, t0)
-    else:
-        # Handle inbound call (normal operation)
-        logger.info("Starting inbound call handling")
-        await ctx.connect()
+        if is_outbound and phone_number:
+            # Handle outbound call
+            logger.info(f"Starting outbound call to {phone_number}")
+            t0 = time.monotonic()
+            await _dial_and_greet_outbound(ctx, session, phone_number, t0)
+        else:
+            # Handle inbound call (normal operation)
+            logger.info("Starting inbound call handling")
+            await ctx.connect()
+    finally:
+        if not assistant.call_outcome_recorded and not assistant.call_end_requested:
+            fallback_user_id = _resolve_call_user_id(ctx, fallback_phone=phone_number)
+            channel = "phone" if is_outbound else "voice"
+            try:
+                database.record_call_outcome(
+                    fallback_user_id,
+                    "failed",
+                    "Call ended before the user's main request was fulfilled.",
+                    category="disengaged",
+                    channel=channel,
+                )
+                logger.info(
+                    "Auto-recorded failed call outcome for unfinished session: user_id=%s, channel=%s",
+                    fallback_user_id,
+                    channel,
+                )
+            except Exception:
+                logger.exception("Failed to auto-record unfinished call outcome")
 
 
 if __name__ == "__main__":

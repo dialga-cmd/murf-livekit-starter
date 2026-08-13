@@ -147,11 +147,12 @@ The Day 5 implementation has been completed with the following features:
 -        ✅ **Symptom Triage Tool**: Added `assess_symptoms_urgency` function tool that analyzes user-described symptoms and returns triage level (emergency/urgent/routine) with appropriate guidance
 -        ✅ **Medical Guidelines Based**: Uses standard emergency medicine guidelines (similar to WHO/NHS protocols) to determine symptom urgency
 -        ✅ **Emergency Detection**: Identifies life-threatening symptoms like chest pain, difficulty breathing, severe bleeding, stroke symptoms, and suicidal ideation
+-        ✅ **Hardcoded Red-Flag Dataset**: Red-flag and emergency symptom rules are implemented from a curated local dataset hardcoded in the codebase because no reliable free emergency-triage API was available
 -        ✅ **Urgent Care Identification**: Detects symptoms requiring same-day attention like high fever, vomiting blood, severe diarrhea, etc.
 -        ✅ **Routine Care Guidance**: Provides self-care advice for mild symptoms that can wait for routine appointment
 -        ✅ **Graceful Error Handling**: Handles API failures or technical issues by advising users to seek caution and consult healthcare providers
 -        ✅ **Clear Attribution**: Informs users that guidance is based on standard medical protocols and is not a diagnosis
--       **Data Source**: Uses local medical guidelines database (no external API calls) ensuring reliability and privacy
+-        ✅ **Data Source**: Uses a local medical guidelines dataset (including hardcoded emergency/red-flag criteria) with no external triage API calls, ensuring reliability and privacy
 
 ---
 
@@ -163,6 +164,7 @@ The Day 6 implementation has been completed with the following outbound calling 
 - ✅ **Opening Message**: Agent explicitly states who they are (Priya from Apollo Tele Health), why they are calling (medication/vaccination reminders), and how to stop the call within the first two sentences.
 - ✅ **Opt-out Handling**: Agent respects "stop" commands and uses an `end_call` tool immediately without re-engaging.
 - ✅ **Dynamic Mode Switching**: The agent detects phone numbers in job metadata to switch to outbound calling mode automatically, whilst maintaining normal inbound behaviors.
+- ✅ **Failed Call Tracking**: If a user ends the call before the main request is fulfilled, the backend auto-records the interaction as a failed/disengaged call so it appears correctly in dashboard analytics.
 
 ## Deploy
 

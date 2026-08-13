@@ -195,6 +195,7 @@ The Day 6 implementation introduces outbound SIP calling functionality:
 - Automated dialing with connection handling (`_dial_and_greet_outbound`).
 - Compliant opening messages detailing identity, intent, and opt-out instructions.
 - SIP Trunk configuration via `LIVEKIT_SIP_OUTBOUND_TRUNK_ID`.
+- Automatic failed-call logging when a user disconnects before their main request is fulfilled, so dashboard analytics show the call as failed/disengaged.
 
 ## Testing
 

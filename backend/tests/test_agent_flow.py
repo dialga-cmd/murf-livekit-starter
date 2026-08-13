@@ -52,23 +52,17 @@ def test_inbound_prompt_routes_appointment_requests_to_specialist() -> None:
 @pytest.mark.asyncio
 async def test_transfer_to_clinic_specialist_handoff() -> None:
     assistant = Assistant()
-    seen = {}
-
-    class FakeSession:
-        def update_agent(self, agent):
-            seen["agent"] = agent
-
-    session = FakeSession()
-    ctx = SimpleNamespace(session=session)
+    ctx = SimpleNamespace(session=SimpleNamespace())
 
     result = await assistant.transfer_to_clinic_specialist(
         ctx,
         user_request="I need to book a cardiology appointment in Mumbai for next Tuesday.",
     )
 
-    assert "i will connect you to our clinic appointment specialist" in result.lower()
-    assert "agent" in seen
-    assert isinstance(seen["agent"], agent_module.ClinicAppointmentSpecialist)
+    assert isinstance(result, tuple)
+    transferred_agent, handoff_message = result
+    assert "i will connect you to our clinic appointment specialist" in handoff_message.lower()
+    assert isinstance(transferred_agent, agent_module.ClinicAppointmentSpecialist)
 
 
 @pytest.mark.asyncio
@@ -359,3 +353,32 @@ async def test_create_escalation_call_later_requires_name(monkeypatch) -> None:
 
     assert "full name" in result.lower()
     assert "ask for their name first" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_record_call_outcome_marks_session_as_recorded(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / "caller_memory.db"
+    monkeypatch.setattr(database, "DB_PATH", str(db_path))
+    database.init_db()
+
+    assistant = Assistant()
+    result = await assistant.record_call_outcome(
+        SimpleNamespace(),
+        user_id="user-123",
+        outcome="success",
+        summary="Booked appointment",
+        category="appointment",
+        channel="voice",
+    )
+
+    assert "recorded call outcome" in result.lower()
+    assert assistant.call_outcome_recorded is True
+
+
+@pytest.mark.asyncio
+async def test_end_call_marks_graceful_end_request() -> None:
+    assistant = Assistant()
+    result = await assistant.end_call(SimpleNamespace())
+
+    assert "ending the call" in result.lower()
+    assert assistant.call_end_requested is True

@@ -12,6 +12,7 @@ The React/Next.js frontend for the Voice Agent Starter. Built with [LiveKit Agen
 - Customizable branding, colors, and UI text via configuration
 - Optimized for Day 4 Health Access features including memory-based conversations and appointment booking flows
 - Includes Day 5 Symptom Triage tool integration and Day 6 Outbound medication reminder calls
+- Reflects backend call analytics updates where early user disconnects are recorded as failed/disengaged outcomes for dashboard reporting
 
 ## Setup
 
