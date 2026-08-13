@@ -46,6 +46,8 @@ DEMO_SCRIPT_MODE = (
     os.environ.get("DEMO_SCRIPT_MODE", "false").strip().lower()
     not in {"0", "false", "off", "no"}
 )
+PRIYA_VOICE_ID = os.environ.get("PRIYA_VOICE_ID", "Anisha")
+ARUN_VOICE_ID = os.environ.get("ARUN_VOICE_ID", "en-US-matthew")
 
 
 async def _dial_and_greet_outbound(
@@ -204,6 +206,14 @@ OUTBOUND CALL HANDLING (calls YOU initiated to the user):
 
 OBJECTIVES: A successful call helps users: understand basic health information, find appropriate clinics or specialists, prepare for appointments (knowing what to bring, fasting requirements), get general wellness tips, understand insurance/telehealth options, feel supported in their healthcare journey, and book medical appointments.
 
+SPECIALIST ROUTING:
+- Use the transfer_to_clinic_specialist tool immediately when the user asks to book an appointment, choose a clinic, match a specialty, confirm a date/time, or ask for appointment booking help.
+- Do NOT hand off for general wellness questions, medical diagnosis questions, or general conversation.
+- If the user asks for appointment booking or clinic scheduling, do not keep talking about general care or ask for extra details before transferring.
+- When you do hand off, first say: "I will connect you to our clinic appointment specialist, Arun."
+- Then call the transfer_to_clinic_specialist tool.
+- The function name to call is transfer_to_clinic_specialist.
+
 KNOWLEDGE: You know about: common health symptoms and when to seek care, clinic locations in major Indian cities (Delhi, Mumbai, Bangalore, Hyderabad, etc.), appointment procedures at partner clinics, general wellness advice (hydration, rest, diet basics), insurance claim processes, telehealth setup, and how to book appointments. You do NOT know: specific medical diagnoses, prescription drug names or dosages, treatment plans, or lab result interpretations.
 
 LANGUAGE: Start conversations in English unless the user initiates in Hindi. Dynamically adapt to the user's language throughout the conversation:
@@ -339,6 +349,33 @@ class Assistant(Agent):
             "en"  # Track current language: en for English, hi for Hindi
         )
         self._escalation_watch_tasks: dict[str, asyncio.Task[None]] = {}
+
+    @function_tool
+    async def transfer_to_clinic_specialist(
+        self,
+        context: RunContext,
+        user_request: str,
+    ):
+        """Transfer the user to the clinic appointment specialist when they need to choose a clinic, match a specialty, or book an appointment. Use this only for scheduling or clinic-selection tasks, not for general health advice or diagnosis questions.
+
+        Args:
+            user_request: The latest user request that triggered the specialist handoff.
+        """
+        logger.info("=== TRANSFER_TO_CLINIC_SPECIALIST CALLED ===")
+        logger.info(f"user_request: {user_request}")
+
+        session = getattr(context, "session", None)
+        if session is None:
+            return "I will connect you to our clinic appointment specialist, Arun."
+
+        specialist = ClinicAppointmentSpecialist()
+        try:
+            session.update_agent(specialist)
+        except Exception:
+            logger.exception("Failed to hand off to clinic appointment specialist")
+            return "I will connect you to our clinic appointment specialist, Arun. Please hold while I transfer you."
+
+        return "I will connect you to our clinic appointment specialist, Arun. Please hold while I transfer you."
 
     @function_tool
     async def look_up_caller(
@@ -1350,6 +1387,38 @@ If you suspect this is a side effect, your doctor may be able to adjust your dos
         return "Ending the call now. Thank you for using the Health Access Voice Agent."
 
 
+class ClinicAppointmentSpecialist(Agent):
+    def __init__(self) -> None:
+        super().__init__(
+            tts=murf.TTS(
+                voice=ARUN_VOICE_ID,
+                style="Conversation",
+                tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
+                text_pacing=True,
+            ),
+            instructions="""You are Arun, the clinic appointment specialist for Apollo Tele Health.
+
+YOUR JOB:
+- Help users choose a clinic, specialty, city, date, or time for an appointment.
+- Continue the same conversation without asking the user to repeat their full request.
+- Ask only for the missing appointment details needed to help them book or prepare.
+- Keep your job narrow: appointment planning, booking, and clinic matching only.
+- If the user asks a general medical question, symptom question, or unrelated topic, briefly redirect them back to the main care assistant.
+
+INTRODUCTION:
+- Introduce yourself immediately after handoff: "Hi, I’m Arun, the clinic appointment specialist. I can help with clinics, specialties, and appointment booking."
+- Keep your tone warm, succinct, and professional.
+
+GOALS:
+- Confirm the location, specialty, date, time, and patient name when needed.
+- Suggest suitable clinics in the user’s city.
+- Verify details before booking.
+- Give a clear confirmation summary after booking.
+- Keep the conversation short and practical.
+"""
+        )
+
+
 server = AgentServer()
 
 
@@ -1398,7 +1467,7 @@ async def my_agent(ctx: JobContext):
         # Text-to-speech (TTS) is your agent's voice, turning the LLM's text into speech that the user can hear
         # See all available models as well as voice selections at https://docs.livekit.io/agents/models/tts/
         tts=murf.TTS(
-            voice="Anisha",  # Using a known working voice for Murf Falcon
+            voice=PRIYA_VOICE_ID,
             style="Conversation",
             tokenizer=tokenize.basic.SentenceTokenizer(min_sentence_len=2),
             text_pacing=True,

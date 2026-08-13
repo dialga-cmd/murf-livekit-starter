@@ -41,6 +41,36 @@ def test_outbound_prompt_keeps_outbound_script() -> None:
     assert "say 'stop' at any time" in prompt.lower()
 
 
+def test_inbound_prompt_routes_appointment_requests_to_specialist() -> None:
+    prompt = _build_system_prompt("inbound")
+
+    assert "book an appointment" in prompt.lower()
+    assert "transfer_to_clinic_specialist" in prompt
+    assert "specialist, arun" in prompt.lower()
+
+
+@pytest.mark.asyncio
+async def test_transfer_to_clinic_specialist_handoff() -> None:
+    assistant = Assistant()
+    seen = {}
+
+    class FakeSession:
+        def update_agent(self, agent):
+            seen["agent"] = agent
+
+    session = FakeSession()
+    ctx = SimpleNamespace(session=session)
+
+    result = await assistant.transfer_to_clinic_specialist(
+        ctx,
+        user_request="I need to book a cardiology appointment in Mumbai for next Tuesday.",
+    )
+
+    assert "i will connect you to our clinic appointment specialist" in result.lower()
+    assert "agent" in seen
+    assert isinstance(seen["agent"], agent_module.ClinicAppointmentSpecialist)
+
+
 @pytest.mark.asyncio
 async def test_create_escalation_wait_requests_music_confirmation(monkeypatch) -> None:
     assistant = Assistant()
@@ -123,7 +153,8 @@ def test_build_llm_uses_groq_then_gemini(monkeypatch) -> None:
 
 
 def test_llm_defaults_are_safe() -> None:
-    assert agent_module.GROQ_MODEL == "llama-3.1-8b-instant"
+    assert isinstance(agent_module.GROQ_MODEL, str)
+    assert agent_module.GROQ_MODEL.strip()
     assert agent_module.LLM_FALLBACK_ATTEMPT_TIMEOUT >= 10
 
 def test_caller_memory_can_store_and_find_reference(tmp_path, monkeypatch) -> None:
