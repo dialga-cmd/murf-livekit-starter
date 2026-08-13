@@ -126,7 +126,6 @@ def test_llm_defaults_are_safe() -> None:
     assert agent_module.GROQ_MODEL == "llama-3.1-8b-instant"
     assert agent_module.LLM_FALLBACK_ATTEMPT_TIMEOUT >= 10
 
-
 def test_caller_memory_can_store_and_find_reference(tmp_path, monkeypatch) -> None:
     db_path = tmp_path / "caller_memory.db"
     monkeypatch.setattr(database, "DB_PATH", str(db_path))
@@ -149,6 +148,35 @@ def test_caller_memory_can_store_and_find_reference(tmp_path, monkeypatch) -> No
     assert by_name["escalation_reference"] == "REQ-123ABC"
     assert by_ref["name"] == "Priya Sharma"
     assert by_ref["facts"]["escalation_ref"] == "REQ-123ABC"
+
+
+def test_call_outcomes_are_recorded_and_aggregated(tmp_path, monkeypatch) -> None:
+    db_path = tmp_path / "caller_memory.db"
+    monkeypatch.setattr(database, "DB_PATH", str(db_path))
+    database.init_db()
+
+    assert database.record_call_outcome(
+        "user-1",
+        "success",
+        "Booked consultation",
+        channel="voice",
+        category="appointment",
+    )
+    assert database.record_call_outcome(
+        "user-2",
+        "failed",
+        "Caller hung up",
+        channel="phone",
+        category="disengaged",
+    )
+
+    stats = database.get_call_stats()
+
+    assert stats["total_calls"] == 2
+    assert stats["successful_calls"] == 1
+    assert stats["failed_calls"] == 1
+    assert stats["by_category"]["appointment"] == 1
+    assert stats["by_channel"]["voice"] == 1
 
 
 @pytest.mark.asyncio

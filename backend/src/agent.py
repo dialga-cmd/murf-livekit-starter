@@ -37,10 +37,14 @@ load_dotenv(".env.local", override=True)
 
 # Outbound call configuration
 OUTBOUND_TRUNK_ID = os.environ.get("LIVEKIT_SIP_OUTBOUND_TRUNK_ID", "")
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-20b")
-GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-3.5-flash-lite")
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "gpt-oss-120b")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash-lite")
 LLM_FALLBACK_ATTEMPT_TIMEOUT = float(
     os.environ.get("LLM_FALLBACK_ATTEMPT_TIMEOUT", "12")
+)
+DEMO_SCRIPT_MODE = (
+    os.environ.get("DEMO_SCRIPT_MODE", "false").strip().lower()
+    not in {"0", "false", "off", "no"}
 )
 
 
@@ -302,6 +306,12 @@ CONVERSATION ENDING:
 - Wait for their response
 - If they agree (say yes or equivalent), use the end_call tool to end the call with a polite goodbye message
 - If they have more questions, continue to assist them
+- At the end of every call, record the final outcome with the record_call_outcome tool using:
+  * user_id: the caller identifier you used during the conversation
+  * outcome: 'success' if the user got the help or task they wanted, otherwise 'failed'
+  * summary: one sentence summary of what happened
+  * category: one of appointment, triage, information, general, disengaged
+  * channel: 'voice' or 'phone'
 
 STYLE: Keep sentences under 20 words when possible. Speak clearly and at a moderate pace. Pause naturally between ideas. If user is silent for more than 5 seconds, gently ask if they need help continuing. Maintain a professional hospital tone at all times."""
 
@@ -473,6 +483,34 @@ class Assistant(Agent):
         else:
             logger.error(f"Failed to save information for user_id: {user_id}")
             return f"Failed to save information for user_id: {user_id}"
+
+    @function_tool
+    async def record_call_outcome(
+        self,
+        context: RunContext,
+        user_id: str,
+        outcome: str,
+        summary: str = "",
+        category: str = "general",
+        channel: str = "voice",
+    ):
+        """Persist the final result of the conversation so the analytics dashboard reflects real call outcomes."""
+        logger.info("=== RECORD_CALL_OUTCOME CALLED ===")
+        normalized_user_id = (user_id or "anonymous").strip()
+        if not normalized_user_id or normalized_user_id == "anonymous":
+            return "I need a caller identifier before I can record the final outcome."
+
+        database.record_call_outcome(
+            normalized_user_id,
+            outcome,
+            summary,
+            category=category or "general",
+            channel=channel or "voice",
+        )
+        return (
+            f"Recorded call outcome for {normalized_user_id}: {outcome} "
+            f"({category or 'general'})."
+        )
 
     @function_tool
     async def find_clinics(

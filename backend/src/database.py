@@ -67,6 +67,18 @@ def init_db():
         )
     """)
 
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS call_outcomes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id TEXT,
+            outcome TEXT NOT NULL,
+            summary TEXT,
+            category TEXT DEFAULT 'general',
+            channel TEXT DEFAULT 'voice',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+
     conn.commit()
     conn.close()
 
@@ -260,6 +272,109 @@ def create_escalation(user_id: str, summary: str, urgency: str, language: str) -
     conn.close()
 
     return ref_id
+
+
+def record_call_outcome(
+    user_id: str,
+    outcome: str,
+    summary: str = "",
+    category: str = "general",
+    channel: str = "voice",
+) -> bool:
+    """Persist whether a call succeeded or failed, as judged by the agent after the conversation."""
+    normalized_outcome = (outcome or "failed").strip().lower()
+    if normalized_outcome not in {"success", "failed", "incomplete"}:
+        normalized_outcome = "failed"
+
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        INSERT INTO call_outcomes (user_id, outcome, summary, category, channel, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+        """,
+        (
+            user_id,
+            normalized_outcome,
+            summary or "",
+            category or "general",
+            channel or "voice",
+            datetime.now().isoformat(),
+        ),
+    )
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_call_stats() -> Dict[str, Any]:
+    """Return aggregated call outcome stats from the real agent-recorded outcomes."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+
+    total_calls = cursor.execute("SELECT COUNT(*) AS total FROM call_outcomes").fetchone()["total"]
+    successful_calls = cursor.execute(
+        "SELECT COUNT(*) AS total FROM call_outcomes WHERE LOWER(outcome) = 'success'"
+    ).fetchone()["total"]
+    failed_calls = cursor.execute(
+        "SELECT COUNT(*) AS total FROM call_outcomes WHERE LOWER(outcome) = 'failed'"
+    ).fetchone()["total"]
+    incomplete_calls = cursor.execute(
+        "SELECT COUNT(*) AS total FROM call_outcomes WHERE LOWER(outcome) = 'incomplete'"
+    ).fetchone()["total"]
+
+    category_rows = cursor.execute(
+        "SELECT category, COUNT(*) AS total FROM call_outcomes GROUP BY category ORDER BY total DESC"
+    ).fetchall()
+    channel_rows = cursor.execute(
+        "SELECT channel, COUNT(*) AS total FROM call_outcomes GROUP BY channel ORDER BY total DESC"
+    ).fetchall()
+
+    conn.close()
+
+    by_category = {row["category"]: row["total"] for row in category_rows}
+    by_channel = {row["channel"]: row["total"] for row in channel_rows}
+
+    return {
+        "total_calls": total_calls,
+        "successful_calls": successful_calls,
+        "failed_calls": failed_calls,
+        "incomplete_calls": incomplete_calls,
+        "success_rate_percent": (successful_calls / total_calls * 100) if total_calls else 0,
+        "by_category": by_category,
+        "by_channel": by_channel,
+    }
+
+
+def get_recent_calls(limit: int = 10) -> list:
+    """Return the most recent call outcomes in analytics-friendly format."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    cursor = conn.cursor()
+    rows = cursor.execute(
+        """
+        SELECT user_id, outcome, summary, category, channel, created_at
+        FROM call_outcomes
+        ORDER BY created_at DESC
+        LIMIT ?
+        """,
+        (limit,),
+    ).fetchall()
+    conn.close()
+
+    return [
+        {
+            "call_id": f"call-{index + 1}",
+            "started_at": row["created_at"],
+            "outcome": row["outcome"],
+            "outcome_category": row["category"],
+            "duration_seconds": 0,
+            "summary": row["summary"] or "No summary recorded.",
+            "channel": row["channel"],
+        }
+        for index, row in enumerate(rows)
+    ]
 
 
 def get_escalations() -> list:
