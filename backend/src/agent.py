@@ -214,6 +214,7 @@ SPECIALIST ROUTING:
 - When you do hand off, first say: "I will connect you to our clinic appointment specialist, Arun."
 - Then call the transfer_to_clinic_specialist tool.
 - The function name to call is transfer_to_clinic_specialist.
+- Arun will hand the conversation back to you once the appointment is booked or he no longer needs to be involved. When that happens, continue the conversation naturally using what was discussed, and remain responsible for recording the call outcome and ending the call as described below — Arun does not do either of those.
 
 KNOWLEDGE: You know about: common health symptoms and when to seek care, clinic locations in major Indian cities (Delhi, Mumbai, Bangalore, Hyderabad, etc.), appointment procedures at partner clinics, general wellness advice (hydration, rest, diet basics), insurance claim processes, telehealth setup, and how to book appointments. You do NOT know: specific medical diagnoses, prescription drug names or dosages, treatment plans, or lab result interpretations.
 
@@ -381,7 +382,8 @@ class Assistant(Agent):
             logger.exception("Failed to publish handoff-start notification")
 
         specialist = ClinicAppointmentSpecialist(
-            chat_ctx=self.chat_ctx.copy(exclude_instructions=True)
+            chat_ctx=self.chat_ctx.copy(exclude_instructions=True),
+            main_assistant=self,
         )
         return specialist, "I will connect you to our clinic appointment specialist, Arun."
 
@@ -1398,7 +1400,11 @@ If you suspect this is a side effect, your doctor may be able to adjust your dos
 
 
 class ClinicAppointmentSpecialist(Agent):
-    def __init__(self, chat_ctx: ChatContext | None = None) -> None:
+    def __init__(
+        self,
+        chat_ctx: ChatContext | None = None,
+        main_assistant: "Assistant | None" = None,
+    ) -> None:
         super().__init__(
             chat_ctx=chat_ctx,
             tts=murf.TTS(
@@ -1426,8 +1432,48 @@ GOALS:
 - Verify details before booking.
 - Give a clear confirmation summary after booking.
 - Keep the conversation short and practical.
+
+HANDING BACK:
+- Once you have booked the appointment (or the user no longer needs appointment help, or asks something outside your scope), call the transfer_back_to_assistant tool.
+- Briefly tell the user you're connecting them back to Priya before calling the tool.
+- Priya is responsible for recording the final call outcome and ending the call, so always hand back rather than trying to end the conversation yourself.
 """
         )
+        self._main_assistant = main_assistant
+
+    @function_tool
+    async def transfer_back_to_assistant(
+        self,
+        context: RunContext,
+        reason: str = "",
+    ):
+        """Hand the conversation back to Priya, the main assistant, once appointment booking is complete or the user needs help outside clinic/appointment matters.
+
+        Args:
+            reason: Brief note on why the conversation is being handed back (e.g. "appointment booked", "user asked a symptom question").
+        """
+        logger.info("=== TRANSFER_BACK_TO_ASSISTANT CALLED ===")
+        logger.info(f"reason: {reason}")
+
+        if self._main_assistant is None:
+            return "I'm unable to transfer you back right now. Let's continue here instead."
+
+        try:
+            room = context.session.room
+            await room.local_participant.publish_data(
+                json.dumps(
+                    {"type": "agent_handoff", "status": "switching", "to": "Priya"}
+                ).encode("utf-8"),
+                reliable=True,
+                topic="agent-status",
+            )
+        except Exception:
+            logger.exception("Failed to publish handback-start notification")
+
+        await self._main_assistant.update_chat_ctx(
+            self.chat_ctx.copy(exclude_instructions=True)
+        )
+        return self._main_assistant, "Connecting you back to Priya."
 
     async def on_enter(self) -> None:
         # Notify the frontend that the handoff has completed
